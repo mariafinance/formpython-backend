@@ -10,7 +10,7 @@ user = Blueprint("user", __name__)
 def register():
     try:
         data = request.get_json()
-        User(**data).save()
+        User(**data).save()  # unpacking the data and saving it to the database
         return Response(json.dumps({"msg": "User registered"}), status=201)
     except NotUniqueError:
         return Response(json.dumps({"msg": "Email already in use"}), status=400)

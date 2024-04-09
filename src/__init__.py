@@ -3,6 +3,7 @@ from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from mongoengine import connect
 from src.user_blueprint import user
+from src.customer_blueprint import customer
 
 
 app = Flask(__name__)
@@ -21,3 +22,4 @@ cors = CORS(
 )
 
 app.register_blueprint(user, url_prefix="/user")
+app.register_blueprint(customer, url_prefix="/customer")

@@ -3,7 +3,7 @@ from flask import Blueprint, jsonify, request, Response
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 #Import the CustomerService
 from src.customer_service import CustomerService
-from src.customer_model import Customer
+from src.customer_model import Address, Customer, PhoneNumber
 import json
 from mongoengine.errors import NotUniqueError
 
@@ -51,24 +51,58 @@ def get_customer_by_afm(afm):
         print(e)
         return Response(json.dumps({"msg": str(e)}), status=400)
 
-@customer_bp.route("/<id>", methods=["GET", "PUT", "DELETE"])
+@customer_bp.route("/<string:id>", methods=["GET", "PUT", "DELETE"])
 def customer_route(id):
-    if request.method == "GET":
-        customer = Customer.objects(id=id).first()
-        return Response(json.dumps(customer.to_json()), status=200)
-    elif request.method == "PUT":
-        data = request.get_json()
-        customer = Customer.objects(id=id).first()
-        if customer:
-            customer.update(**data)
-            return Response(json.dumps({"msg": "Customer updated successfully"}), status=200, mimetype='application/json')
-        return Response(json.dumps({"msg": "Customer not found"}), status=404, mimetype='application/json')
-    elif request.method == "DELETE":
-        customer = Customer.objects(id=id).first()
-        if customer:
-            customer.delete()
-            return Response(json.dumps({"msg": "Customer deleted successfully"}), status=200, mimetype='application/json')
-        return Response(json.dumps({"msg": "Customer not found"}), status=404, mimetype='application/json')
+    try:
+        if request.method == "GET":
+            customer = Customer.objects(id=ObjectId(id)).first()
+            if customer:
+                return Response(json.dumps(customer.to_json()), status=200)
+            return Response(json.dumps({"msg": "Customer not found"}), status=404)
+        elif request.method == "PUT":
+            try:
+                data = request.get_json()
+                customer = Customer.objects(id=ObjectId(id)).first()
+                if customer:
+                    # Update simple fields directly
+                    customer.givenName = data.get('givenName', customer.givenName)
+                    customer.surName = data.get('surName', customer.surName)
+                    customer.email = data.get('email', customer.email)
+                    customer.afm = data.get('afm', customer.afm)
+                    
+                    # Update phoneNumbers if provided
+                    if 'phoneNumbers' in data:
+                        customer.phoneNumbers = [
+                            PhoneNumber(number=phone.get('number'), type=phone.get('type'))
+                            for phone in data['phoneNumbers']
+                        ]
+                    
+                    # Update address if provided
+                    if 'address' in data:
+                        customer.address = Address(
+                            street=data['address'].get('street', ''),
+                            city=data['address'].get('city', ''),
+                            number=data['address'].get('number', ''),
+                            zipCode=data['address'].get('zipCode', '')
+                        )
+
+                    customer.save()  # Save the updated customer document
+                    return jsonify({"msg": "Customer updated successfully"}), 200
+                
+                return jsonify({"msg": "Customer not found"}), 404
+            
+            except Exception as e:
+                print(f"Error updating customer: {e}")
+                return jsonify({"msg": "Server error"}), 500
+        elif request.method == "DELETE":
+            customer = Customer.objects(id=ObjectId(id)).first()
+            if customer:
+                customer.delete()
+                return Response(json.dumps({"msg": "Customer deleted successfully"}), status=200, mimetype='application/json')
+            return Response(json.dumps({"msg": "Customer not found"}), status=404, mimetype='application/json')
+    except Exception as e:
+        print(e)
+        return Response(json.dumps({"msg": "Invalid ID format"}), status=400)
 
 @customer_bp.route("/search", methods=["GET"])
 def search_customers():

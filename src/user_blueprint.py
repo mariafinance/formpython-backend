@@ -1,7 +1,7 @@
-from flask import Blueprint, request, Response
+from flask import Blueprint, jsonify, request, Response
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from src.user_service import UserService
-from src.user_model import User
+from src.user_model import User, has_role
 import json
 from mongoengine.errors import NotUniqueError
 from werkzeug.security import check_password_hash
@@ -43,10 +43,14 @@ def login():
         identity = user_service.authenticate_user(data["email"], data["password"])
         if identity:
             access_token = create_access_token(identity=identity)
+            user = User.objects(email=data["email"]).first()
+
             return Response(
                     json.dumps(
                         {"msg": "Login successful",
-                          "access_token": access_token},
+                          "access_token":access_token,
+                           "email": user.email
+                          },
                     ),
                     status=200,
                 )
@@ -54,3 +58,19 @@ def login():
     except Exception as e:
         print(e)
         return Response(json.dumps({"msg": str(e)}), status=400)
+
+@user.route('/admin', methods=['GET'])
+@jwt_required()
+def admin():
+    current_user = get_jwt_identity()
+    user = User.objects(email=current_user['email']).first()
+    if not has_role(user, 'admin'):
+        return jsonify({"msg": "Access denied"}), 403
+    return jsonify({"msg": "Welcome admin"}), 200
+
+
+@user.route('/protected', methods=['GET'])
+@jwt_required()
+def protected():
+    current_user = get_jwt_identity()
+    return jsonify(logged_in_as=current_user), 200

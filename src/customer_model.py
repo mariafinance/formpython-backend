@@ -1,5 +1,4 @@
-import mongoengine as me
-
+import mongoengine as me;
 
 class Address(me.EmbeddedDocument):
     street = me.StringField(required=True)

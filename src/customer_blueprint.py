@@ -1,25 +1,37 @@
 from bson import ObjectId
 from flask import Blueprint, jsonify, request, Response
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
-#Import the CustomerService
 from src.customer_service import CustomerService
 from src.customer_model import Address, Customer, PhoneNumber
 import json
 from mongoengine.errors import NotUniqueError
+from flask_restful import Resource
+from flasgger.utils import swag_from
+from flask_restx import Api, Namespace, Resource, fields
+from flasgger import Swagger
+from werkzeug.utils import cached_property
 
 
 customer_bp = Blueprint("customer", __name__)
-#Use the customer_service.py
 customer_service = CustomerService()
 
 
 @customer_bp.route("/create", methods=["POST"])
+@swag_from({
+    'responses': {
+        201: {
+            'description': 'Customer added successfully'
+        },
+        400: {
+            'description': 'Email or AFM already in use or other error'
+        }
+    }
+})
 def add_customer():
     try:
         data = request.get_json()
         customer_service.create_customer(data)
         print(data)
-        #Customer(**data).save()
         return Response(json.dumps({"msg": "Customer added"}), status=201)
     except NotUniqueError:
         return Response(json.dumps({"msg": "Email or AFM already in use"}), status=400)
@@ -27,8 +39,40 @@ def add_customer():
         print(e)
         return Response(json.dumps({"msg": str(e)}), status=400)
 
-
 @customer_bp.route("/email/<string:email>", methods=["GET"])
+@swag_from({
+    'parameters': [
+        {
+            'name': 'email',
+            'in': 'path',
+            'type': 'string',
+            'required': True,
+            'description': 'Email address of the customer to retrieve'
+        }
+    ],
+    'responses': {
+        200: {
+            'description': 'Customer found',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'givenName': {'type': 'string'},
+                    'surName': {'type': 'string'},
+                    'email': {'type': 'string'},
+                    'afm': {'type': 'string'},
+                    'phoneNumbers': {'type': 'array', 'items': {'type': 'object'}},
+                    'address': {'type': 'object'}
+                }
+            }
+        },
+        404: {
+            'description': 'Customer not found'
+        },
+        400: {
+            'description': 'Bad request or other error'
+        }
+    }
+})
 def get_customer_by_email(email):
     try:
         customer = Customer.objects(email=email).first()
@@ -39,8 +83,40 @@ def get_customer_by_email(email):
         print(e)
         return Response(json.dumps({"msg": str(e)}), status=400)
 
-
 @customer_bp.route("/afm/<string:afm>", methods=["GET"])
+@swag_from({
+    'parameters': [
+        {
+            'name': 'afm',
+            'in': 'path',
+            'type': 'string',
+            'required': True,
+            'description': 'AFM (Tax Identification Number) of the customer to retrieve'
+        }
+    ],
+    'responses': {
+        200: {
+            'description': 'Customer found',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'givenName': {'type': 'string'},
+                    'surName': {'type': 'string'},
+                    'email': {'type': 'string'},
+                    'afm': {'type': 'string'},
+                    'phoneNumbers': {'type': 'array', 'items': {'type': 'object'}},
+                    'address': {'type': 'object'}
+                }
+            }
+        },
+        404: {
+            'description': 'Customer not found'
+        },
+        400: {
+            'description': 'Bad request or other error'
+        }
+    }
+})
 def get_customer_by_afm(afm):
     try:
         customer = Customer.objects(afm=afm).first()
@@ -52,6 +128,39 @@ def get_customer_by_afm(afm):
         return Response(json.dumps({"msg": str(e)}), status=400)
 
 @customer_bp.route("/<string:id>", methods=["GET", "PUT", "DELETE"])
+@swag_from({
+    'parameters': [
+        {
+            'name': 'id',
+            'in': 'path',
+            'type': 'string',
+            'required': True,
+            'description': 'ID of the customer'
+        }
+    ],
+    'responses': {
+        200: {
+            'description': 'Customer found',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'givenName': {'type': 'string'},
+                    'surName': {'type': 'string'},
+                    'email': {'type': 'string'},
+                    'afm': {'type': 'string'},
+                    'phoneNumbers': {'type': 'array', 'items': {'type': 'object'}},
+                    'address': {'type': 'object'}
+                }
+            }
+        },
+        404: {
+            'description': 'Customer not found'
+        },
+        400: {
+            'description': 'Bad request or other error'
+        }
+    }
+})
 def customer_route(id):
     try:
         if request.method == "GET":
@@ -105,6 +214,54 @@ def customer_route(id):
         return Response(json.dumps({"msg": "Invalid ID format"}), status=400)
 
 @customer_bp.route("/search", methods=["GET"])
+@swag_from({
+    'parameters': [
+        {
+            'name': 'afm',
+            'in': 'query',
+            'type': 'string',
+            'required': False,
+            'description': 'Customer AFM'
+        },
+        {
+            'name': 'email',
+            'in': 'query',
+            'type': 'string',
+            'required': False,
+            'description': 'Customer email'
+        },
+        {
+            'name': 'id',
+            'in': 'query',
+            'type': 'string',
+            'required': False,
+            'description': 'Customer ID'
+        }
+    ],
+    'responses': {
+        200: {
+            'description': 'List of customers found',
+            'schema': {
+                'type': 'array',
+                'items': {
+                    'type': 'object',
+                    'properties': {
+                        '_id': {'type': 'string'},
+                        'givenName': {'type': 'string'},
+                        'surName': {'type': 'string'},
+                        'email': {'type': 'string'},
+                        'afm': {'type': 'string'},
+                        'phoneNumbers': {'type': 'array', 'items': {'type': 'object'}},
+                        'address': {'type': 'object'}
+                    }
+                }
+            }
+        },
+        400: {
+            'description': 'Invalid ID format or other error'
+        }
+    }
+})
 def search_customers():
     afm = request.args.get('afm')
     email = request.args.get('email')
